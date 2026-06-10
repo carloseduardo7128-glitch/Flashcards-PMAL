@@ -167,11 +167,37 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .lock-btn{width:100%;padding:13px;background:var(--blue);border:none;border-radius:10px;color:#000;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;transition:.15s;margin-bottom:10px}
 .lock-btn:hover{background:#93c5fd}
 .lock-error{font-size:12px;color:var(--red);min-height:18px;transition:.2s}
-@media(max-width:680px){
+@media(max-width:768px){
   .layout{grid-template-columns:1fr}
   .sidebar{display:none}
   .home-grid{grid-template-columns:1fr 1fr}
-  .main{padding:16px 16px 80px}
+  .main{padding:14px 14px 80px}
+  .topbar{padding:0 12px;height:auto;min-height:54px;flex-wrap:wrap;gap:6px;padding-top:8px;padding-bottom:8px}
+  .brand{font-size:13px}
+  .topbar-right{gap:5px;flex-wrap:wrap}
+  .stat-pill{font-size:11px;padding:3px 8px}
+  .btn-sm{font-size:10px;padding:4px 8px}
+  .answer-row{flex-direction:column;gap:8px}
+  .btn-ce,.btn-er{padding:14px;font-size:14px}
+  .card{padding:16px}
+  .card-text{font-size:13.5px}
+  .card-header{flex-wrap:wrap;gap:6px}
+  .sub-stats{gap:6px}
+  .sub-stat{padding:6px 10px}
+  .sub-stat b{font-size:16px}
+  .fc-container{max-width:100%}
+  .home-grid{grid-template-columns:1fr}
+  .rank-table th,.rank-table td{padding:8px 6px;font-size:12px}
+  .rank-bar-wrap{width:70px}
+  .user-bar{display:none!important}
+  .sub-title{font-size:17px}
+  .auth-box{padding:28px 20px;margin:16px}
+  .lock-box{padding:28px 20px;margin:16px}
+}
+@media(max-width:480px){
+  .topbar-right .stat-pill:nth-child(3){display:none}
+  .btn-sm{font-size:10px;padding:4px 7px}
+  .home-grid{grid-template-columns:1fr}
 }
 
 /* FIREBASE LOGIN SCREEN */
@@ -396,7 +422,7 @@ function renderRevPanel(){
       <div class="card">
         <div class="card-header">
           <div class="card-source">&#128203; ${esc(q.r)}</div>
-          <button class="btn-copy" id="btn-copy-q" onclick="copyQ(q.t, q.r)">&#9042; Copiar quest&#227;o</button>
+          <button class="btn-copy" id="btn-copy-q" onclick="copyCurrentQ()">&#9042; Copiar quest&#227;o</button>
         </div>
         <div class="card-text">${esc(q.t)}</div>
       </div>
@@ -407,7 +433,9 @@ function renderRevPanel(){
       <button class="btn-confirm${selAns&&!done?' ready':''}" id="bconf" onclick="confirmRev()" ${done?'disabled':''}>
         ${done?'Respondido \u2713':'Confirmar resposta'}
       </button>
-      <div id="rbanner" class="result-banner"></div>
+      <div id="rbanner" class="result-banner${done?(selAns===q.a?' ok':' err'):''}" style="${done?'display:block':''}">
+        ${done?(selAns===q.a?'✓ Você acertou!':'✗ Você errou'):''}
+      </div>
       <div id="gabbox" class="gab-box ${q.a==='Certo'?'certo':'errado'}" style="${done?'display:block':''}">
         <div class="gab-header"><span class="gab-icon">${q.a==='Certo'?'\u2705':'\u274c'}</span><span>Gabarito Oficial: <strong>${q.a.toUpperCase()}</strong></span></div>
         <div class="gab-body">Quest\u00e3o de concurso p\u00fablico organizado pela banca <strong>CEBRASPE/CESPE</strong>.
@@ -479,7 +507,7 @@ function jumpToRevQ(qid){
   if(idx>=0){revIdx=idx;selAns=null;done=false;renderRevPanel();window.scrollTo({top:0,behavior:'smooth'});}
 }
 function removeRevQ(qid){
-  if(ST[qid]){ST[qid].rev=false;saveST();}
+  if(ST[qid]){ST[qid].rev=false;saveProgress();}
   revList=getRevList();
   if(revIdx>=revList.length&&revIdx>0)revIdx=revList.length-1;
   selAns=null;done=false;
@@ -492,18 +520,12 @@ function confirmRev(){
   const q=item.q;done=true;
   const ok=selAns===q.a;
   ST[q.i]={...ST[q.i],ans:selAns,ok,rev:true};
-  saveST();
-  document.getElementById('gabbox').style.display='block';
-  document.getElementById('fcact').style.display='flex';
-  const rb=document.getElementById('rbanner');
-  rb.style.display='block';rb.className='result-banner '+(ok?'ok':'err');
-  rb.textContent=ok?'\u2713 Voc\u00ea acertou!':'\u2717 Voc\u00ea errou';
-  document.querySelectorAll('.btn-ce,.btn-er').forEach(b=>b.disabled=true);
-  const bc=document.getElementById('bconf');bc.disabled=true;bc.textContent='Respondido \u2713';bc.classList.remove('ready');
-  updTop();renderSB();
+  saveProgress();
+  renderRevPanel();
+  updTop();
+  renderSB();
 }
 
-/* ── HOME ── */
 function goHome(){
   curSid=null;selAns=null;done=false;cache=null;
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
@@ -610,7 +632,7 @@ function renderSub(){
       <div class="card">
         <div class="card-header">
           <div class="card-source">📋 ${esc(q.r)}</div>
-          <button class="btn-copy" id="btn-copy-q" onclick="copyQ(q.t, q.r)">⎘ Copiar questão</button>
+          <button class="btn-copy" id="btn-copy-q" onclick="copyCurrentQ()">⎘ Copiar questão</button>
         </div>
         <div class="card-text">${esc(q.t)}</div>
       </div>
@@ -621,7 +643,9 @@ function renderSub(){
       <button class="btn-confirm${selAns&&!done?' ready':''}" id="bconf" onclick="confirm_()" ${done?'disabled':''}>
         ${done?'Respondido ✓':'Confirmar resposta'}
       </button>
-      <div id="rbanner" class="result-banner"></div>
+      <div id="rbanner" class="result-banner${done?(selAns===q.a?' ok':' err'):''}" style="${done?'display:block':''}">
+        ${done?(selAns===q.a?'✓ Você acertou!':'✗ Você errou'):''}
+      </div>
       <div id="gabbox" class="gab-box ${q.a==='Certo'?'certo':'errado'}" style="${done?'display:block':''}">
         <div class="gab-header">
           <span class="gab-icon">${q.a==='Certo'?'✅':'❌'}</span>
@@ -671,22 +695,39 @@ function renderSub(){
   updTop();
 }
 
-function copyQ(text, source){
-  const full = source + '\n\n' + text;
-  navigator.clipboard.writeText(full).then(()=>{
-    const btn = document.getElementById('btn-copy-q');
-    if(btn){btn.textContent='✓ Copiado!';btn.classList.add('copied');setTimeout(()=>{btn.textContent='⎘ Copiar questão';btn.classList.remove('copied');},2000);}
+function copyCurrentQ(){
+  // Get current question from state (not from DOM attribute)
+  let q = null;
+  if(curSid==='__rev__'){
+    q = revList[revIdx]?.q;
+  } else {
+    const f = getFiltered();
+    q = f[curIdx];
+  }
+  if(!q) return;
+  const full = q.r + '\n\n' + q.t;
+  const btn = document.getElementById('btn-copy-q');
+  const doSuccess = () => {
+    if(btn){btn.textContent='✓ Copiado!';btn.classList.add('copied');
+      setTimeout(()=>{btn.textContent='⎘ Copiar questão';btn.classList.remove('copied');},2000);}
     toast('Questão copiada!');
-  }).catch(()=>{
-    // fallback
+  };
+  if(navigator.clipboard && window.isSecureContext){
+    navigator.clipboard.writeText(full).then(doSuccess).catch(()=>{
+      // fallback
+      const ta=document.createElement('textarea');
+      ta.value=full;ta.style.cssText='position:fixed;top:0;left:0;opacity:0';
+      document.body.appendChild(ta);ta.focus();ta.select();
+      try{document.execCommand('copy');doSuccess();}catch(e){}
+      document.body.removeChild(ta);
+    });
+  } else {
     const ta=document.createElement('textarea');
-    ta.value=full;ta.style.position='fixed';ta.style.opacity='0';
-    document.body.appendChild(ta);ta.select();document.execCommand('copy');
+    ta.value=full;ta.style.cssText='position:fixed;top:0;left:0;opacity:0';
+    document.body.appendChild(ta);ta.focus();ta.select();
+    try{document.execCommand('copy');doSuccess();}catch(e){}
     document.body.removeChild(ta);
-    const btn = document.getElementById('btn-copy-q');
-    if(btn){btn.textContent='✓ Copiado!';btn.classList.add('copied');setTimeout(()=>{btn.textContent='⎘ Copiar questão';btn.classList.remove('copied');},2000);}
-    toast('Questão copiada!');
-  });
+  }
 }
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 function pick(ans){
@@ -702,21 +743,14 @@ function confirm_(){
   done=true;
   const ok=selAns===q.a;
   ST[q.i]={ans:selAns,ok,rev:ST[q.i]?.rev||false};
-  saveST();
-  document.getElementById('gabbox').style.display='block';
-  document.getElementById('fcact').style.display='flex';
-  const rb=document.getElementById('rbanner');
-  rb.style.display='block';
-  rb.className='result-banner '+(ok?'ok':'err');
-  rb.textContent=ok?'✓ Você acertou!':'✗ Você errou';
-  document.querySelectorAll('.btn-ce,.btn-er').forEach(b=>b.disabled=true);
-  const bc=document.getElementById('bconf');
-  bc.disabled=true;bc.textContent='Respondido ✓';bc.classList.remove('ready');
-  updTop();renderSB();
+  saveProgress();
+  renderSub();  // re-render with done=true so everything shows correctly
+  updTop();
+  renderSB();
 }
 function togRev(qid){
   if(!ST[qid])return;
-  ST[qid].rev=!ST[qid].rev;saveST();
+  ST[qid].rev=!ST[qid].rev;saveProgress();
   const r=ST[qid].rev;
   const b=document.getElementById('brev');
   if(b){b.textContent=r?'⚑ Marcado para revisão':'⚑ Marcar para revisão';b.style.color=r?'var(--amber)':'';b.style.borderColor=r?'var(--amber)':'';}
@@ -765,6 +799,9 @@ async function checkPass(){
     if(currentUID){
       await loadFromFirestore();
       await initApp();
+      renderSB();
+      renderHome();
+      updTop();
     }
   } else {
     err.textContent = 'Senha incorreta. Tente novamente.';
@@ -856,17 +893,9 @@ function setSyncBadge(type, msg){
   b.textContent = msg;
 }
 
-// Override saveST to also sync to Firestore with debounce
-const _origSaveST = saveST;
-function saveST(){
-  _origSaveST();
-  clearTimeout(syncTimeout);
-  syncTimeout = setTimeout(saveToFirestore, 1500); // debounce 1.5s
-}
-
 /* ── INIT ── */
 async function initApp(){
-  await loadData();
+  if(!SUBJECTS) await loadData();
   renderSB();
   renderHome();
   updTop();
