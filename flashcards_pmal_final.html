@@ -287,8 +287,20 @@ let curSid=null,curIdx=0,filter='all',selAns=null,done=false,shuffled=false,cach
 
 function loadST(){try{const s=localStorage.getItem('pmfc5');if(s)ST=JSON.parse(s);}catch(e){}}
 function saveST(){try{localStorage.setItem('pmfc5',JSON.stringify(ST));}catch(e){}}
+let _syncTimeout=null;
+function saveProgress(){
+  saveST();
+  clearTimeout(_syncTimeout);
+  _syncTimeout=setTimeout(async()=>{
+    if(currentUID){
+      try{await saveToFirestore();await savePublicProfile();}
+      catch(e){console.error('Sync:',e);}
+    }
+  },1500);
+}
 
 async function loadData(){
+  if(SUBJECTS)return; // already loaded
   const bin=atob(B64),arr=new Uint8Array(bin.length);
   for(let i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);
   const ds=new DecompressionStream('gzip');
@@ -517,10 +529,12 @@ function removeRevQ(qid){
 function confirmRev(){
   if(!selAns||done)return;
   const item=revList[revIdx];if(!item)return;
-  const q=item.q;done=true;
-  const ok=selAns===q.a;
-  ST[q.i]={...ST[q.i],ans:selAns,ok,rev:true};
+  const q=item.q;
+  const myAns=selAns;
+  const ok=myAns===q.a;
+  ST[q.i]={...ST[q.i],ans:myAns,ok,rev:true};
   saveProgress();
+  selAns=null;done=false;
   renderRevPanel();
   updTop();
   renderSB();
@@ -740,11 +754,13 @@ function pick(ans){
 function confirm_(){
   if(!selAns||done)return;
   const f=getFiltered(),q=f[curIdx];if(!q)return;
-  done=true;
-  const ok=selAns===q.a;
-  ST[q.i]={ans:selAns,ok,rev:ST[q.i]?.rev||false};
+  const myAns=selAns;
+  const ok=myAns===q.a;
+  ST[q.i]={ans:myAns,ok,rev:ST[q.i]?.rev||false};
   saveProgress();
-  renderSub();  // re-render with done=true so everything shows correctly
+  // Reset then let renderSub restore from ST (same path as nav-back, which works)
+  selAns=null;done=false;
+  renderSub();
   updTop();
   renderSB();
 }
@@ -797,8 +813,8 @@ async function checkPass(){
     document.getElementById('lock-screen').style.display='none';
     // If already signed in, load app
     if(currentUID){
+      if(!SUBJECTS) await loadData();
       await loadFromFirestore();
-      await initApp();
       renderSB();
       renderHome();
       updTop();
@@ -845,9 +861,12 @@ auth.onAuthStateChanged(async user => {
       setTimeout(()=>document.getElementById('lock-input').focus(),100);
     } else {
       document.getElementById('lock-screen').style.display='none';
+      // Load questions first, then Firestore progress, then render
+      if(!SUBJECTS) await loadData();
       await loadFromFirestore();
-      if(!SUBJECTS) await initApp();
-      else { renderSB(); renderHome(); updTop(); }
+      renderSB();
+      renderHome();
+      updTop();
     }
   } else {
     currentUID = null;
@@ -900,6 +919,17 @@ async function initApp(){
   renderHome();
   updTop();
 }
+
+// Save progress when user leaves page
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='hidden'&&currentUID){
+    saveST();
+    saveToFirestore().catch(()=>{});
+  }
+});
+window.addEventListener('beforeunload',()=>{
+  if(currentUID) saveToFirestore().catch(()=>{});
+});
 
 // On load: show auth screen, Firebase onAuthStateChanged handles the rest
 document.getElementById('auth-screen').style.display='flex';
